@@ -1,0 +1,394 @@
+//#include <Eigen/Dense>
+//#include <iostream>
+//#include <math.h>
+//#include <vector>
+//
+//
+//#define BINARY_DIM 8
+//#define LARGEST_NUM 256
+//#define ITERATIONS 100000
+////compute sigmoid 
+//double sigmoid(double x) {
+//	return (1 / (1 + exp(-(x))));
+//}
+//
+////compute the derivative of the output of the sigmoid
+//double sigmoid_output_to_derivative(double output) {
+//	return output * (1 - output);
+//}
+//
+////convert a integer input to its binary representation vector
+//Eigen::Matrix<short int, 1, BINARY_DIM> int_to_binary(int input) {
+//	Eigen::Matrix<short int, 1, BINARY_DIM> x;
+//
+//	for (int i = 0; i < BINARY_DIM; i++) {
+//		x(i) = input % 2;
+//		input = input / 2;
+//	}
+//	return x;
+//
+//}
+//
+////convert a binary representation vector to its integer number
+//int binary_to_int(Eigen::Matrix<short int, 1, BINARY_DIM> input) {
+//	int x = 0;
+//
+//	for (int i = 0; i < BINARY_DIM; i++) {
+//		x += pow(2, i)*input(i);
+//	}
+//	return x;
+//}
+//
+//int main(void) {
+//	Eigen::Matrix<short int, LARGEST_NUM, BINARY_DIM> binary_representations;
+//	//Eigen::Matrix<short int, 1, BINARY_DIM> row = int_to_binary(100);
+//	//int x = binary_to_int(row);
+//	//std::cout << row;
+//	std::srand(0);
+//
+//	//create a lookup table of binary representations
+//	for (int i = 0; i < LARGEST_NUM; i++) {
+//		Eigen::Matrix<short int, 1, BINARY_DIM> temp = int_to_binary(i);
+//		binary_representations.row(i) = temp;
+//	}
+//	
+//	//input variables
+//	const double alpha = 0.1;
+//	const int input_dim = 2;
+//	const int hidden_dim = 16;
+//	const int output_dim = 1;
+//
+//	//initialize rnn weights
+//	Eigen::Matrix<double, input_dim, hidden_dim> synapse_0 = Eigen::Matrix<double, input_dim, hidden_dim>::Random();
+//	Eigen::Matrix<double, hidden_dim, output_dim> synapse_1;
+//	synapse_1.setRandom();
+//	Eigen::Matrix<double, hidden_dim, hidden_dim> synapse_h;
+//	synapse_h.setRandom();
+//
+//	//update 
+//	Eigen::Matrix<double, input_dim, hidden_dim> synapse_0_update;
+//	synapse_0_update.setZero();
+//	Eigen::Matrix<double, hidden_dim, output_dim> synapse_1_update;
+//	synapse_1_update.setZero();
+//	Eigen::Matrix<double, hidden_dim, hidden_dim> synapse_h_update;
+//	synapse_h_update.setZero();
+//
+//
+//	//training logic
+//	for (int j = 0; j < ITERATIONS; j++) {
+//		//generate random a, b
+//		int a_int = std::rand() % (LARGEST_NUM/2);
+//		//int a_int = 55;
+//		Eigen::Matrix<short int, 1, BINARY_DIM> a = binary_representations.row(a_int);
+//
+//		int b_int = std::rand() % (LARGEST_NUM/2);
+//		//b_int = 32;
+//		Eigen::Matrix<short int, 1, BINARY_DIM> b = binary_representations.row(b_int);
+//
+//		//actual sum
+//		int c_int = a_int + b_int;
+//		Eigen::Matrix<short int, 1, BINARY_DIM> c = binary_representations.row(c_int);
+//
+//		//place to store our best guess
+//		Eigen::Matrix<short int, 1, BINARY_DIM> d;
+//		d.setZero();
+//
+//		double overall_error = 0;
+//		
+//		std::vector<Eigen::Matrix<double, 1, 1>> layer_2_deltas;
+//		std::vector<Eigen::Matrix<double, 1, hidden_dim>> layer_1_values;
+//		layer_1_values.push_back(Eigen::Matrix<double, 1, hidden_dim>::Zero());
+//		
+//		for (int position = 0; position < BINARY_DIM; position++) {
+//
+//			//generate input and output 
+//			Eigen::Matrix<double, 1, 2> X;
+//			X(0, 0) = (double)a(0, position);
+//			X(0, 1) = (double)b(0, position);
+//			Eigen::Matrix<double, 1, 1> y;
+//			y(0, 0) = (double)c(0, position);
+//			
+//			// hidden layer
+//			Eigen::Matrix<double, 1, hidden_dim> layer_1 = X * synapse_0 + layer_1_values.back()*synapse_h;
+//
+//			for(int i = 0; i < layer_1.size(); i++){
+//				layer_1.data()[i] = sigmoid(layer_1.data()[i]);
+//
+//			}
+//
+//			//output layer
+//			Eigen::Matrix<double, 1, 1> layer_2 = layer_1 * synapse_1;
+//
+//			layer_2.data()[0] = sigmoid(layer_2.data()[0]);
+//
+//			// calc error
+//			Eigen::Matrix<double, 1, 1> layer_2_error = y - layer_2;
+//			layer_2_deltas.push_back((layer_2_error)*sigmoid_output_to_derivative(layer_2(0, 0)));
+//			overall_error += (double) abs(layer_2_error(0, 0));
+//
+//			//estimate
+//			d(0, position) = round(layer_2(0, 0));
+//			
+//			//store hidden layer so we can print it
+//			Eigen::Matrix<double, 1, hidden_dim> layer_1_copy = layer_1;
+//			layer_1_values.push_back(layer_1_copy);
+//		}
+//
+//		Eigen::Matrix<double, 1, hidden_dim> future_layer_1_delta = Eigen::Matrix<double, 1, hidden_dim>::Zero();
+//
+//
+//		//backpropagate
+//		for (int position = BINARY_DIM-1; position >= 0; position--) {
+//			Eigen::Matrix<double, 1, 2> X;
+//			X(0, 0) = (double)a(0, position);
+//			X(0, 1) = (double)b(0, position);
+//
+//
+//			Eigen::Matrix<double, 1, hidden_dim> layer_1 = layer_1_values.at(position + 1);
+//
+//			Eigen::Matrix<double, 1, hidden_dim> prev_layer_1 = layer_1_values.at(position);
+//
+//			//error at output layer
+//			Eigen::Matrix<double, 1, 1> layer_2_delta = layer_2_deltas.at(position);
+//
+//			//error at hidden layer
+//			Eigen::Matrix<double, 1, hidden_dim> layer_1_delta = (future_layer_1_delta*synapse_h.transpose() + layer_2_delta * synapse_1.transpose());
+//			for (int i = 0; i < layer_1_delta.size(); i++) {
+//				layer_1_delta.data()[i] *= sigmoid_output_to_derivative(layer_1(0, i));
+//			}
+//
+//			synapse_1_update = synapse_1_update + (layer_1.transpose()*layer_2_delta);
+//			synapse_h_update = synapse_h_update + (prev_layer_1.transpose()*layer_1_delta);
+//			synapse_0_update = synapse_0_update + (X.transpose()*layer_1_delta);
+//
+//			future_layer_1_delta = layer_1_delta;
+//		}
+//
+//		synapse_0 = synapse_0 + (synapse_0_update * alpha);
+//		synapse_1 = synapse_1 + (synapse_1_update * alpha);
+//		synapse_h = synapse_h + (synapse_h_update * alpha);
+//
+//		synapse_0_update.setZero();
+//		synapse_1_update.setZero();
+//		synapse_h_update.setZero();
+//
+//
+//		
+//		if (j % 500 == 0) {
+//			std::cout.precision(4);
+//			std::cout << "error: " << overall_error << std::endl;
+//			std::cout << "Predicted: " << d << std::endl;
+//			std::cout << "True: " << c << std::endl;
+//			int out = binary_to_int(d.cast <short int>());
+//			std::cout << a_int << " + " << b_int << " = " << out << std::endl;
+//			
+//		}
+//	}
+//}
+
+
+#include <Eigen/Dense>
+#include <iostream>
+#include <math.h>
+#include <vector>
+
+#define MAX_STRIDE_SIZE 20
+#define NUM_HIDDENS 128
+#define BATCHES 1
+
+using namespace Eigen;
+using namespace std;
+
+vector<Matrix<double, 1, MAX_STRIDE_SIZE>> strides_vector_to_onehot(vector<int> strides) {
+
+	vector<Matrix<double, 1, MAX_STRIDE_SIZE>> onehot;
+	for (int i = 0; i < strides.size(); i++) {
+		Matrix<double, 1, MAX_STRIDE_SIZE> cur_onehot;
+		cur_onehot.setZero();
+		cur_onehot(0, strides.at(i)) = (double) 1;
+		onehot.push_back(cur_onehot);
+	}
+	return onehot;
+}
+
+//initialize hidden layers
+Matrix<double, MAX_STRIDE_SIZE, NUM_HIDDENS> initialize_W_xh() {
+	Matrix<double, MAX_STRIDE_SIZE, NUM_HIDDENS> W_xh;
+	W_xh.setRandom();
+	return W_xh;
+}
+
+Matrix<double, NUM_HIDDENS, NUM_HIDDENS> initialize_W_hh() {
+	Matrix<double, NUM_HIDDENS, NUM_HIDDENS> W_hh;
+	W_hh.setRandom();
+	return W_hh;
+}
+
+Matrix<double, 1, NUM_HIDDENS> initialize_b_h() {
+	Matrix<double, 1, NUM_HIDDENS> b_h;
+	b_h.setZero();
+	return b_h;
+}
+
+
+//initialize output layers
+Matrix<double, NUM_HIDDENS, MAX_STRIDE_SIZE> initialize_W_hq() {
+	Matrix<double, NUM_HIDDENS, MAX_STRIDE_SIZE> W_hq;
+	W_hq.setRandom();
+	return W_hq;
+}
+
+Matrix<double, 1, MAX_STRIDE_SIZE> initialize_b_q() {
+	Matrix<double, 1, MAX_STRIDE_SIZE> b_q;
+	b_q.setZero();
+	return b_q;
+}
+
+//initialize rnn
+Matrix<double, BATCHES, NUM_HIDDENS> initialize_rnn() {
+	Matrix<double, BATCHES, NUM_HIDDENS> H;
+	H.setZero();
+	return H;
+}
+
+struct rnn_outputs {
+	vector<Matrix<double, 1, MAX_STRIDE_SIZE>> outputs;
+	Matrix<double, BATCHES, NUM_HIDDENS> H;
+};
+
+struct params {
+	Matrix<double, MAX_STRIDE_SIZE, NUM_HIDDENS> W_xh;
+	Matrix<double, NUM_HIDDENS, NUM_HIDDENS> W_hh;
+	Matrix<double, 1, NUM_HIDDENS> b_h;
+
+	//initialize output layers
+	Matrix<double, NUM_HIDDENS, MAX_STRIDE_SIZE> W_hq;
+	Matrix<double, 1, MAX_STRIDE_SIZE> b_q;
+};
+
+//rnn function
+rnn_outputs rnn(vector<Matrix<double, 1, MAX_STRIDE_SIZE>>& inputs, const Matrix<double, BATCHES, NUM_HIDDENS>& Hidden, params &p) {
+	Matrix<double, MAX_STRIDE_SIZE, NUM_HIDDENS> W_xh = p.W_xh;
+	Matrix<double, NUM_HIDDENS, NUM_HIDDENS> W_hh = p.W_hh;
+	Matrix<double, 1, NUM_HIDDENS> b_h = p.b_h;
+	Matrix<double, NUM_HIDDENS, MAX_STRIDE_SIZE> W_hq = p.W_hq;
+	Matrix<double, 1, MAX_STRIDE_SIZE> b_q = p.b_q;
+	Matrix<double, BATCHES, NUM_HIDDENS> H = Hidden;
+	vector<Matrix<double, 1, MAX_STRIDE_SIZE>> outputs;
+
+	for (int i = 0; i < inputs.size(); i++) {
+		Matrix<double, 1, MAX_STRIDE_SIZE> X = inputs.at(i);
+		H = (X * W_xh) + (H * W_hh) + b_h;
+		H.array() = H.array().tanh();
+		Matrix<double, 1, MAX_STRIDE_SIZE> Y;
+		Y = (H * W_hq) + b_q;
+		outputs.push_back(Y);
+	}
+	rnn_outputs my_output;
+	my_output.outputs = outputs;
+	my_output.H = H;
+
+	return my_output;
+}
+
+//argmax function
+Matrix<double, 1, MAX_STRIDE_SIZE> argmax(Matrix<double, 1, MAX_STRIDE_SIZE> x) {
+	double cur_max = -1;
+	int cur_max_index = -1;
+	for (int i = 0; i < MAX_STRIDE_SIZE; i++){
+		if (cur_max < x(1, i)) {
+			cur_max = x(1, i);
+			cur_max_index = i;
+		}
+	}
+	x.setZero();
+	x(0, cur_max_index) = 1;
+	return x;
+}
+
+//rnn predict function 
+Matrix<double, 1, MAX_STRIDE_SIZE> rnn_prediction(vector<Matrix<double, 1, MAX_STRIDE_SIZE>> sequence, params param) {
+	Matrix<double, BATCHES, NUM_HIDDENS> H = initialize_rnn();
+	vector<Matrix<double, 1, MAX_STRIDE_SIZE>> output; 
+		params p = param;
+	output.push_back(sequence.at(0));
+	//iterate through sequence and predict output
+	for (int i = 0; i < sequence.size(); i++) {
+		vector<Matrix<double, 1, MAX_STRIDE_SIZE>> X;
+		X.push_back(output.back());
+		const Matrix<double, 1, NUM_HIDDENS> Hidden = H;
+		rnn_outputs my_output = rnn(X, Hidden, p);
+		H = my_output.H;
+		vector<Matrix<double, 1, MAX_STRIDE_SIZE>> Y;
+		Y = my_output.outputs;
+		if (i < sequence.size() - 1) {
+			//get next in the given sequence
+			output.push_back(sequence.at(i + 1));
+		}
+		else {
+			//predict next based on model
+			output.push_back(argmax(Y.at(0)));
+		}
+		//return predicted val
+		return output.back();
+	}
+}
+
+
+int main(void) {
+	vector<int> x;
+	x.push_back(19);
+	x.push_back(rand() % 20);
+	x.push_back(rand() % 20);
+	x.push_back(rand() % 20);
+	x.push_back(rand() % 20);
+	x.push_back(rand() % 20);
+	x.push_back(rand() % 20);
+	vector<Matrix<double, 1, MAX_STRIDE_SIZE>> onehots = strides_vector_to_onehot(x);
+	cout << "suh" << endl;
+
+	//initialize inputs
+	//actual code will look different btw
+	vector<Matrix<double, 1, MAX_STRIDE_SIZE>> inputs = onehots;
+
+	const int num_hiddens = NUM_HIDDENS;
+	const int num_inputs = MAX_STRIDE_SIZE;
+	const int num_outputs = MAX_STRIDE_SIZE;
+
+	const int batch_size = 1;	//might change later
+	//rnn
+	//initialize hidden layers
+	Matrix<double, num_inputs, num_hiddens> W_xh = initialize_W_xh();
+	Matrix<double, num_hiddens, num_hiddens> W_hh = initialize_W_hh();
+	Matrix<double, 1, num_hiddens> b_h = initialize_b_h();
+
+	//initialize output layers
+	Matrix<double, num_hiddens, num_outputs> W_hq = initialize_W_hq();
+	Matrix<double, 1, num_outputs> b_q = initialize_b_q();
+
+	//init rnn
+	Matrix<double, batch_size, num_hiddens> H = initialize_rnn();
+
+	vector<Matrix<double, 1, num_outputs>> outputs; 
+
+	params p;
+
+	p.b_h = b_h;
+	p.b_q = b_q;
+	p.W_hh = W_hh;
+	p.W_hq = W_hq;
+	p.W_xh = W_xh;
+
+
+	rnn_outputs my_outputs = rnn(inputs, H, p);
+
+
+
+	outputs.push_back(rnn_prediction(inputs, p));
+
+	cout << "test" << endl;
+	 
+
+
+
+}
