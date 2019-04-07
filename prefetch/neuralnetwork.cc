@@ -25,12 +25,13 @@
 #include <string>
 #include <fstream>
 
-NeuralNetworkPrefetcher::NeuralNetworkPrefetcher(const NeuralNetworkPrefetcher *p) : QueuedPrefetcher(p), {
+NeuralNetworkPrefetcher::NeuralNetworkPrefetcher(const NeuralNetworkPrefetcherParams *p) : QueuedPrefetcher(p) 
+
+{
 	
     // Don't consult the prefetcher on instruction accesses
     onInst = false;
-	ofstream addressfile;
-	addressfile.open ("address_list.txt");
+	totalCalcs = 0;
 
 }
 
@@ -43,15 +44,16 @@ void NeuralNetworkPrefetcher::calculatePrefetch(const PacketPtr &pkt, std::vecto
 
     // Get required packet info
     Addr pkt_addr = pkt->getAddr();
-    Addr pc = pkt->req->getPC();
-    bool is_secure = pkt->isSecure();
-    MasterID master_id = useMasterId ? pkt->req->masterId() : 0;
+    //Addr pc = pkt->req->getPC();
+    //bool is_secure = pkt->isSecure();
+    //MasterID master_id = useMasterId ? pkt->req->masterId() : 0;
 	
+	addressfile.open("address_list.txt", std::ios_base::app);
 	std::string s = std::to_string(pkt_addr);
+	totalCalcs++;
 	addressfile << s;
-	addressfile << "\n";	
-
-	
+	addressfile << "\n";
+	addressfile.close();
 	
 	
 	/* Insert nn code here */
@@ -81,8 +83,4 @@ NeuralNetworkPrefetcher*
 NeuralNetworkPrefetcherParams::create()
 {
     return new NeuralNetworkPrefetcher(this);
-}
-
-NeuralNetworkPrefetcherParams::~NeuralNetworkPrefetcher() {
-	addressfile.close();
 }
