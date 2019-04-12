@@ -53,6 +53,11 @@
 #include "mem/cache/prefetch/queued.hh"
 #include "params/StridePrefetcher.hh"
 
+#define MAX_STRIDE_SIZE 10
+#define NUM_HIDDENS 64
+#define BATCHES 1
+#define RECURRENCE_LENGTH 24
+
 class StridePrefetcher : public QueuedPrefetcher
 {
   protected:

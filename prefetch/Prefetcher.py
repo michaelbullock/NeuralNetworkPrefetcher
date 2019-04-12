@@ -96,3 +96,9 @@ class NeuralNetworkPrefetcher(QueuedPrefetcher):
     cxx_class = 'NeuralNetworkPrefetcher'
     cxx_header = "mem/cache/prefetch/neuralnetwork.hh"
     #Put neural network config values here
+	
+class SimpleRNNPrefetcher(QueuedPrefetcher):
+	type = 'SimpleRNNPrefetcher'
+	cxx_class = 'SimpleRNNPrefetcher'
+	cxx_header = "mem/cache/prefetch/simplernn.hh"
+	#Put rnn config values here
