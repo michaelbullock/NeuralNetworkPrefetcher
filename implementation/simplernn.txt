@@ -1,0 +1,319 @@
+#include <Eigen/Dense>
+#include <iostream>
+#include <math.h>
+#include <vector>
+
+#define MAX_STRIDE_SIZE 50
+#define NUM_HIDDENS 64
+#define ITERATIONS 1
+#define RECURRENCE_LENGTH 24
+#define THETA 0.01
+
+
+using namespace Eigen;
+using namespace std;
+
+//compute sigmoid 
+double sigmoid(double x) {
+	return (1 / (1 + exp(-(x))));
+}
+
+//compute the derivative of the output of the sigmoid
+double sigmoid_output_to_derivative(double output) {
+	return output * (1 - output);
+}
+
+Matrix<double, 1, MAX_STRIDE_SIZE> sigmoid(Matrix<double, 1, MAX_STRIDE_SIZE>& x)
+{
+	Matrix<double, 1, MAX_STRIDE_SIZE> input = x;
+	for (int i = 0; i < input.size(); i++) {
+		input.array()(i) = sigmoid(input.array()(i));
+	}
+
+	return input;
+}
+
+
+Matrix<double, 1, NUM_HIDDENS> sigmoid(Matrix<double, 1, NUM_HIDDENS>& x)
+{
+	Matrix<double, 1, NUM_HIDDENS> input = x;
+	for (int i = 0; i < input.size(); i++) {
+		input.array()(i) = sigmoid(input.array()(i));
+	}
+
+	return input;
+}
+
+
+double dsigmoid(double x)
+{
+	return (sigmoid(x) * (1 - sigmoid(x)));
+}
+
+Matrix<double, 1, MAX_STRIDE_SIZE> dsigmoid(Matrix<double, 1, MAX_STRIDE_SIZE>& x)
+{
+	Matrix<double, 1, MAX_STRIDE_SIZE> input = x;
+	for (int i = 0; i < input.size(); i++) {
+		input.array()[i] = dsigmoid(input.array()[i]);
+	}
+	return input;
+}
+
+Matrix<double, 1, NUM_HIDDENS> dsigmoid(Matrix<double, 1, NUM_HIDDENS>& x)
+{
+	Matrix<double, 1, NUM_HIDDENS> input = x;
+	for (int i = 0; i < input.size(); i++) {
+		input.array()[i] = dsigmoid(input.array()[i]);
+	}
+	return input;
+}
+
+vector<int> create_sequence_count(int start) {
+	vector<int> x;
+	for (int i = start; i < RECURRENCE_LENGTH + 1 + start; i++) {
+		x.push_back(i%MAX_STRIDE_SIZE);
+	}
+	return x;
+}
+
+vector<Matrix<double, 1, MAX_STRIDE_SIZE>> strides_vector_to_onehot(vector<int> strides) {
+
+	vector<Matrix<double, 1, MAX_STRIDE_SIZE>> onehots;
+	for (unsigned int i = 0; i < strides.size(); i++) {
+		Matrix<double, 1, MAX_STRIDE_SIZE> cur_onehot;
+		cur_onehot.setZero();
+		cur_onehot(0, strides.at(i)) = (double)1;
+		onehots.push_back(cur_onehot);
+	}
+	return onehots;
+}
+Matrix<double, 1, MAX_STRIDE_SIZE> to_onehot(int stride) {
+	Matrix<double, 1, MAX_STRIDE_SIZE> cur_onehot;
+	cur_onehot.setZero();
+	cur_onehot(0, MAX_STRIDE_SIZE/2 + stride) = (double)1;
+	return cur_onehot;
+}
+
+
+Matrix<double, 1, MAX_STRIDE_SIZE> argmax(Matrix<double, 1, MAX_STRIDE_SIZE>& x) {
+	double cur_max = -1;
+	int cur_max_index = -1;
+	for (int i = 0; i < MAX_STRIDE_SIZE; i++) {
+		if (cur_max < x(0, i)) {
+			cur_max = x(0, i);
+			cur_max_index = i;
+		}
+	}
+	x.setZero();
+	x(0, cur_max_index) = 1;
+	return x;
+}
+
+int extract_stride(Matrix<double, 1, MAX_STRIDE_SIZE>& x) {
+	double cur_max = -1;
+	int cur_max_index = -1;
+	for (int i = 0; i < MAX_STRIDE_SIZE; i++) {
+		if (cur_max < x(0, i)) {
+			cur_max = x(0, i);
+			cur_max_index = i;
+		}
+	}
+	cur_max_index -= (MAX_STRIDE_SIZE / 2);
+	return cur_max_index;
+}
+
+struct updates {
+	Eigen::Matrix<double, MAX_STRIDE_SIZE, NUM_HIDDENS> synapse_0_update;
+	Eigen::Matrix<double, NUM_HIDDENS, MAX_STRIDE_SIZE> synapse_1_update;
+	Eigen::Matrix<double, NUM_HIDDENS, NUM_HIDDENS> synapse_h_update;
+};
+
+updates grad_clipping(updates grads, double theta) {
+	double norm = 0;
+	norm += grads.synapse_0_update.array().pow(2).sum();
+	norm += grads.synapse_1_update.array().pow(2).sum();
+	norm += grads.synapse_h_update.array().pow(2).sum();
+	norm = sqrt(norm);
+	if (norm > theta) {
+		grads.synapse_0_update.array() *= (theta / norm);
+		grads.synapse_1_update.array() *= (theta / norm);
+		grads.synapse_h_update.array() *= (theta / norm);
+	}
+	return grads;
+}
+
+
+//input variables
+double alpha = 10;
+const int input_dim = MAX_STRIDE_SIZE;
+const int hidden_dim = NUM_HIDDENS;
+const int output_dim = MAX_STRIDE_SIZE;
+
+//initialize rnn weights
+Eigen::Matrix<double, input_dim, hidden_dim> synapse_0;
+//synapse_0.setRandom();
+Eigen::Matrix<double, hidden_dim, output_dim> synapse_1;
+//synapse_1.setRandom();
+Eigen::Matrix<double, hidden_dim, hidden_dim> synapse_h;
+//synapse_h.setRandom();
+
+//update 
+Eigen::Matrix<double, input_dim, hidden_dim> synapse_0_update;
+//synapse_0_update.setZero();
+Eigen::Matrix<double, hidden_dim, output_dim> synapse_1_update;
+//synapse_1_update.setZero();
+Eigen::Matrix<double, hidden_dim, hidden_dim> synapse_h_update;
+//synapse_h_update.setZero();
+vector<Eigen::Matrix<double, 1, MAX_STRIDE_SIZE>> expected_outputs;
+vector<int> addresses;
+
+void mike_is_cute() {
+	synapse_0.setRandom();
+	synapse_1.setRandom();
+	synapse_h.setRandom();
+	synapse_0_update.setZero();
+	synapse_1_update.setZero();
+	synapse_h_update.setZero();
+}
+
+int main(void) {
+	for (int i = 0; i < 1000; i++) {
+		int address = ((i % MAX_STRIDE_SIZE) - (MAX_STRIDE_SIZE / 2)) * 4096;
+		addresses.push_back(address / 4096);
+		if (addresses.size() < 2) {
+			//return 0;
+			continue;
+		}
+		else if (addresses.size() > RECURRENCE_LENGTH) {
+			addresses.erase(addresses.begin());
+		}
+		int new_stride = addresses.back() - addresses.at(addresses.size() - 2);
+		if (new_stride >= MAX_STRIDE_SIZE / 2 | new_stride < -(MAX_STRIDE_SIZE / 2)) {
+			new_stride = 0;
+		}
+		if (new_stride != 0) {
+			Matrix<double, 1, MAX_STRIDE_SIZE> onehot = to_onehot(new_stride);
+			expected_outputs.push_back(onehot);
+			if (expected_outputs.size() > RECURRENCE_LENGTH + 1) {
+				expected_outputs.erase(expected_outputs.begin());
+			}
+		}
+		//training logic
+		for (int j = 0; j < ITERATIONS; j++) {
+			//generate random start
+			int start = std::rand() % (MAX_STRIDE_SIZE);
+
+
+
+			//place to store our best guess
+			Eigen::Matrix<double, RECURRENCE_LENGTH + 1, MAX_STRIDE_SIZE> d;
+			d.setZero();
+
+			double overall_error = 0;
+
+			std::vector<Eigen::Matrix<double, 1, output_dim>> layer_2_deltas;
+			std::vector<Eigen::Matrix<double, 1, hidden_dim>> layer_1_values;
+			layer_1_values.push_back(Eigen::Matrix<double, 1, hidden_dim>::Zero());
+
+			for (int position = 0; position < expected_outputs.size() - 1; position++) {
+
+				//generate input and output 
+				Matrix<double, 1, MAX_STRIDE_SIZE> X = expected_outputs.at(position);
+				Matrix<double, 1, MAX_STRIDE_SIZE> y = expected_outputs.at(position + 1);
+
+				// hidden layer
+				Eigen::Matrix<double, 1, hidden_dim> layer_1 = X * synapse_0 + layer_1_values.back()*synapse_h;
+
+				layer_1 = sigmoid(layer_1);
+
+				//output layer
+				Eigen::Matrix<double, 1, output_dim> layer_2 = layer_1 * synapse_1;
+
+				layer_2 = sigmoid(layer_2);
+
+				// calc error
+				Eigen::Matrix<double, 1, output_dim> layer_2_error = y - layer_2;
+				layer_2_deltas.push_back((layer_2_error).array() * dsigmoid(layer_2).array());
+				overall_error += (double)abs(layer_2_error.sum());
+
+				//estimate
+				d.row(position) = argmax(layer_2);
+
+				//store hidden layer so we can print it
+				Eigen::Matrix<double, 1, hidden_dim> layer_1_copy = layer_1;
+				layer_1_values.push_back(layer_1_copy);
+			}
+
+			//generate prediction
+			Matrix<double, 1, MAX_STRIDE_SIZE> X = expected_outputs.back();
+			Eigen::Matrix<double, 1, hidden_dim> layer_1 = X * synapse_0 + layer_1_values.back()*synapse_h;
+			layer_1 = sigmoid(layer_1);
+			//output layer
+			Eigen::Matrix<double, 1, output_dim> layer_2 = layer_1 * synapse_1;
+
+			layer_2 = sigmoid(layer_2);
+			int prediction = extract_stride(layer_2);
+
+			prediction *= 4096;
+
+			prediction += address;
+
+			Eigen::Matrix<double, 1, hidden_dim> future_layer_1_delta = Eigen::Matrix<double, 1, hidden_dim>::Zero();
+
+
+			//backpropagate
+			for (int position = expected_outputs.size() - 2; position >= 0; position--) {
+				Matrix<double, 1, MAX_STRIDE_SIZE> X = expected_outputs.at(position);
+
+
+				Eigen::Matrix<double, 1, hidden_dim> layer_1 = layer_1_values.at(position + 1);
+
+				Eigen::Matrix<double, 1, hidden_dim> prev_layer_1 = layer_1_values.at(position);
+
+				//error at output layer
+				Eigen::Matrix<double, 1, MAX_STRIDE_SIZE> layer_2_delta = layer_2_deltas.at(position);
+
+				//error at hidden layer
+				Eigen::Matrix<double, 1, hidden_dim> layer_1_delta = (future_layer_1_delta*synapse_h.transpose() + layer_2_delta * synapse_1.transpose()).array() * dsigmoid(layer_1).array();
+
+				synapse_1_update = synapse_1_update + (layer_1.transpose()*layer_2_delta);
+				synapse_h_update = synapse_h_update + (prev_layer_1.transpose()*layer_1_delta);
+				synapse_0_update = synapse_0_update + (X.transpose()*layer_1_delta);
+
+
+
+				future_layer_1_delta = layer_1_delta;
+			}
+
+			updates g;
+			g.synapse_0_update = synapse_0_update;
+			g.synapse_1_update = synapse_1_update;
+			g.synapse_h_update = synapse_h_update;
+
+			g = grad_clipping(g, THETA);
+
+			synapse_0_update = g.synapse_0_update;
+			synapse_1_update = g.synapse_1_update;
+			synapse_h_update = g.synapse_h_update;
+
+			synapse_0 = synapse_0 + (synapse_0_update * alpha);
+			synapse_1 = synapse_1 + (synapse_1_update * alpha);
+			synapse_h = synapse_h + (synapse_h_update * alpha);
+
+			synapse_0_update.setZero();
+			synapse_1_update.setZero();
+			synapse_h_update.setZero();
+
+
+			std::cout << "error: " << overall_error << std::endl;
+
+			if (i % 100 == 0) {
+
+				std::cout.precision(4);
+				std::cout << "error: " << overall_error << std::endl;
+				std::cout << "Predicted: " << d.row(RECURRENCE_LENGTH - 1) << std::endl;
+				std::cout << "Actual: " << expected_outputs.at(RECURRENCE_LENGTH) << std::endl;
+			}
+		}
+	}
+}
