@@ -101,4 +101,5 @@ class SimpleRNNPrefetcher(QueuedPrefetcher):
 	type = 'SimpleRNNPrefetcher'
 	cxx_class = 'SimpleRNNPrefetcher'
 	cxx_header = "mem/cache/prefetch/simplernn.hh"
+	cache_snoop = Param.Bool(True, "Snoop cache to eliminate redundant request")
 	#Put rnn config values here
